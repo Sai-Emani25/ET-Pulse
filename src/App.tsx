@@ -28,11 +28,14 @@ import {
   Download,
   AlertCircle,
   X,
-  Loader2
+  Loader2,
+  Presentation,
+  Copy,
+  Check
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Persona, NewsStory, Briefing } from './types';
-import { getPersonalizedFeed, getStoryBriefing, askFollowUp, generateNarration, startVideoGeneration, pollVideoStatus, fetchVideoBlob } from './services/geminiService';
+import { getPersonalizedFeed, getStoryBriefing, askFollowUp, generateNarration, startVideoGeneration, pollVideoStatus, fetchVideoBlob, generatePPTPrompt } from './services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import { VideoPlayer } from './components/VideoPlayer';
 
@@ -72,6 +75,12 @@ export default function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
+  // PPT State
+  const [pptOutline, setPptOutline] = useState<string | null>(null);
+  const [pptLoading, setPptLoading] = useState(false);
+  const [showPptModal, setShowPptModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     const checkApiKey = async () => {
       if (window.aistudio) {
@@ -104,6 +113,22 @@ export default function App() {
     const data = await getStoryBriefing(story.title, persona!);
     setBriefing(data);
     setBriefingLoading(false);
+    setPptOutline(null);
+  };
+
+  const handleGeneratePPT = async () => {
+    if (!briefing || !persona) return;
+    setPptLoading(true);
+    setShowPptModal(true);
+    const outline = await generatePPTPrompt(briefing, persona);
+    setPptOutline(outline);
+    setPptLoading(false);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleAsk = async (e?: React.FormEvent) => {
@@ -451,6 +476,14 @@ export default function App() {
                                 <span className="text-[10px] font-mono uppercase tracking-widest font-bold">
                                   {videoUrl ? "Watch Video" : "Visual Intelligence"}
                                 </span>
+                              </button>
+                              <button 
+                                onClick={handleGeneratePPT}
+                                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-300 border border-line group/btn"
+                                title="Generate PPT Outline"
+                              >
+                                <Presentation className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                                <span className="text-[10px] font-mono uppercase tracking-widest font-bold">PPT Outline</span>
                               </button>
                               <button className="p-2 hover:bg-white/10 rounded-xl transition-colors border border-line"><Bookmark className="w-4 h-4" /></button>
                             </div>
@@ -856,6 +889,92 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* PPT Modal */}
+      <AnimatePresence>
+        {showPptModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-4xl max-h-[85vh] glass-card rounded-[2.5rem] border border-accent/20 overflow-hidden flex flex-col relative"
+            >
+              {/* Header */}
+              <div className="p-8 border-b border-line flex items-center justify-between bg-white/[0.02]">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center border border-accent/20">
+                    <Presentation className="w-6 h-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-serif italic">Presentation Intelligence</h3>
+                    <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Strategic Slide Deck Outline</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {pptOutline && (
+                    <button 
+                      onClick={() => copyToClipboard(pptOutline)}
+                      className="flex items-center gap-2 px-4 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded-xl border border-accent/20 transition-all text-[10px] font-mono uppercase tracking-widest font-bold"
+                    >
+                      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy Outline"}
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setShowPptModal(false)}
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                {pptLoading ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-6">
+                    <div className="relative">
+                      <Loader2 className="w-12 h-12 text-accent animate-spin" />
+                      <div className="absolute inset-0 w-12 h-12 border border-accent/20 rounded-full animate-ping" />
+                    </div>
+                    <div className="text-center space-y-2">
+                      <p className="text-[10px] font-mono text-accent uppercase tracking-[0.4em] animate-pulse">Synthesizing Slides</p>
+                      <p className="text-[9px] font-mono text-muted uppercase tracking-widest">Structuring strategic narrative...</p>
+                    </div>
+                  </div>
+                ) : pptOutline ? (
+                  <div className="prose prose-invert max-w-none prose-p:text-gray-300 prose-headings:text-accent prose-headings:font-serif prose-headings:italic">
+                    <ReactMarkdown>{pptOutline}</ReactMarkdown>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 bg-accent/5 border-t border-accent/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-accent/60" />
+                  <p className="text-[10px] text-muted leading-relaxed">
+                    This outline is optimized for a {persona} audience. Use it as a foundation for your strategic deck.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowPptModal(false)}
+                  className="px-6 py-2 bg-accent text-black rounded-xl text-[10px] font-mono uppercase tracking-widest font-bold hover:bg-accent/90 transition-all"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Back to Top Button */}
       <motion.button
         initial={{ opacity: 0, scale: 0.8 }}

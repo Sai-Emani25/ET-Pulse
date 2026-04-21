@@ -138,3 +138,22 @@ export async function fetchVideoBlob(uri: string) {
   });
   return await response.blob();
 }
+
+export async function generatePPTPrompt(briefing: Briefing, persona: string) {
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Based on this intelligence briefing, create a 7-slide professional PowerPoint presentation outline.
+    
+    Briefing Overview: ${briefing.overview}
+    Key Takeaways: ${briefing.keyTakeaways.join(", ")}
+    Persona: ${persona}
+    
+    For each slide, provide:
+    1. Slide Title
+    2. 3-4 concise bullet points
+    3. A 'Speaker Note' that adds strategic depth and context.
+    
+    Format the output as a structured outline.`,
+  });
+  return response.text;
+}
